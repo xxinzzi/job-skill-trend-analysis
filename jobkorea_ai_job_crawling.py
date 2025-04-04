@@ -9,7 +9,7 @@ import time
 
 # 셀레니움 드라이버 설정
 options = Options()
-options.add_argument("--headless")  # GUI 없이 실행할 경우 주석 해제
+# options.add_argument("--headless")  # GUI 없이 실행할 경우 주석 해제
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 driver = webdriver.Chrome(options=options)
@@ -21,12 +21,10 @@ results = []
 
 # 잡코리아 직무별 채용공고 검색 페이지 접속
 driver.get("https://www.jobkorea.co.kr/recruit/joblist?menucode=duty")
-time.sleep(3)
 
 # 대분류 'AI·개발·데이터' 선택
 label = driver.find_element(By.CSS_SELECTOR, "label[for='duty_step1_10031']")
 driver.execute_script("arguments[0].click();", label)
-time.sleep(2)
 print("✅ 대분류 'AI·개발·데이터' 선택 완료")
 
 # 중분류 직무 리스트 수집
@@ -60,8 +58,8 @@ for idx in range(len(mid_categories)):
         print(f"✅ [{mid_cat_label}] 검색 시작")
 
         # 스크롤 다운
-        driver.execute_script("window.scrollBy(0, 2200);")
-        time.sleep(2)
+        ##driver.execute_script("window.scrollBy(0, 2200);")
+        #time.sleep(2)
 
         page_num = 1
         while True:
@@ -92,6 +90,27 @@ for idx in range(len(mid_categories)):
                         # 기술 키워드
                         skills = post.find_element(By.CSS_SELECTOR, "td.tplTit p.dsc").text.strip() if post.find_elements(By.CSS_SELECTOR, "td.tplTit p.dsc") else ""
 
+                        # 상세페이지 이동 → 기업형태 수집
+                        driver.execute_script("window.open(arguments[0]);", link)
+                        driver.switch_to.window(driver.window_handles[-1])
+                        time.sleep(2)
+
+                        corp_type = ""
+                        try:
+                            tb_list = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "dl.tbList")))
+                            dt_elements = tb_list.find_elements(By.TAG_NAME, "dt")
+                            dd_elements = tb_list.find_elements(By.TAG_NAME, "dd")
+
+                            for dt, dd in zip(dt_elements, dd_elements):
+                                if "기업형태" in dt.text:
+                                    corp_type = dd.text.strip()
+                                    break
+                        except Exception as detail_err:
+                            print("⚠️ 기업형태 수집 실패:", detail_err)
+
+                        driver.close()
+                        driver.switch_to.window(driver.window_handles[0])
+
                         results.append({
                             "직무(대분류)": "AI·개발·데이터",
                             "직무(중분류)": mid_cat_label,
@@ -99,8 +118,9 @@ for idx in range(len(mid_categories)):
                             "공고제목": title,
                             "경력": experience,
                             "학력": education,
-                            "고용형태": employment,
+                            "회사 지역": employment,
                             "기술키워드": skills,
+                            "기업형태": corp_type,
                             "공고링크": link
                         })
 
