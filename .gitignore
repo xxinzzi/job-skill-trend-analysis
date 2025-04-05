@@ -1,3 +1,41 @@
-*.csv
-venv
+# macOS 관련
+.DS_Store
+
+# Python 캐시/빌드 관련
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# 가상환경
+venv/
+.venv/
+
+# 환경 변수 파일
 .env
+.env.*
+
+# Jupyter 관련
+.ipynb_checkpoints/
+
+# VSCode 설정
+.vscode/
+
+# PyCharm 설정
+.idea/
+
+# 로그 파일
+*.log
+
+# 시스템 파일
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 기타 개인 설정
+*.swp
+*.bak
+*.tmp
