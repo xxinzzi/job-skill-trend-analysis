@@ -9,13 +9,15 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
-# utils에서 MongoDB 유틸 불러오기
+# utils에서 MongoDB 및 S3 업로드 유틸 불러오기
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from utils.mongo_utils import init_mongo, get_collection
+from utils.image_utils import extract_real_image_url 
+from utils.s3_utils import upload_image_to_s3
 
 # MongoDB 초기화 및 컬렉션 객체
 init_mongo()
-raw_col = get_collection("raw_postings_jobkorea_test")
+raw_col = get_collection("raw_postings_jobkorea")
 
 # Selenium 크롬 드라이버 옵션
 options = Options()
@@ -142,7 +144,18 @@ try:
                         print("❌ iframe 이미지 수집 실패:", iframe_err)
 
                     if image_urls:
-                        document["detail_image_urls"] = image_urls
+                        s3_urls = []
+                        for url in image_urls:
+                            real_url = extract_real_image_url(url)
+                            s3_url = upload_image_to_s3(real_url)
+                            if s3_url:
+                                s3_urls.append(s3_url)
+
+                        if s3_urls:
+                            document["image_urls"] = s3_urls
+                        else:
+                            # 업로드 실패 시 원본 URL fallback
+                            s3_urls.append(url)
 
                 # 구조2일 경우
                 elif structure2:
