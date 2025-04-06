@@ -17,7 +17,7 @@ from utils.mongo_utils import init_mongo, get_collection
 
 # MongoDB 초기화 및 컬렉션 객체
 init_mongo()
-raw_col = get_collection("raw_postings")
+raw_col = get_collection("raw_postings_jobkorea_test")
 
 # Selenium 크롬 드라이버 옵션
 options = Options()
@@ -39,7 +39,6 @@ wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "ul#duty_step2_
 mid_categories = driver.find_elements(By.CSS_SELECTOR, "ul#duty_step2_10031_ly li input[type='checkbox']")
 
 # 사용자로부터 중분류 선택
-print(f"\n🔎 총 {len(mid_categories)}개의 중분류가 있습니다.")
 for i, cat in enumerate(mid_categories):
     label = driver.find_element(By.CSS_SELECTOR, f"label[for='{cat.get_attribute('id')}']").text.strip()
     print(f"[{i}] {label}")
@@ -62,7 +61,7 @@ try:
     driver.execute_script("arguments[0].click();", search_btn)
     time.sleep(3)
 
-    # 공고 수 추출: 'AI/ML 엔지니어 (418)' → 418
+    # 공고 수 추출
     match = re.search(r"\((\d+)\)", mid_cat_label)
     if match:
         total_count = int(match.group(1))
@@ -73,15 +72,11 @@ try:
     total_pages = (total_count + 39) // 40
     mid_cat_clean_label = re.sub(r"\s*\(.*?\)", "", mid_cat_label).strip()
 
-    print(f"\n총 {total_count}건 → {total_pages} 페이지에서 수집합니다.")
+    current_page = 1
+    while current_page <= total_pages:
+        print(f"\n⏳ {current_page}/{total_pages} 페이지 수집 중...")
 
-    for page in range(1, total_pages + 1):
-        print(f"\n⏳ {page} 페이지 수집 중...")
-
-        page_url = f"https://www.jobkorea.co.kr/recruit/joblist?menucode=duty&duty1=10031&duty2={mid_cat_value}&page={page}"
-        driver.get(page_url)
-        time.sleep(3)
-
+        # 공고 리스트 수집
         dev_gi_list = wait.until(EC.presence_of_element_located((By.ID, "dev-gi-list")))
         postings = dev_gi_list.find_elements(By.CSS_SELECTOR, "tr.devloopArea")
 
@@ -102,9 +97,15 @@ try:
                 # 구조2 탐지
                 structure2 = soup.select_one("div.dev-wrap-detailContents") or soup.select_one("div.recruit-data")
 
-                raw_blocks = {}
-                raw_text_blocks = {}
                 title = company = ""
+
+                # 공통 필드 먼저 구성
+                document = {
+                    "url": link,
+                    "source": "jobkorea",
+                    "job_category": "AI·개발·데이터",
+                    "job_mid_category": mid_cat_clean_label,
+                }
 
                 # 구조1일 경우
                 if structure1:
@@ -117,48 +118,30 @@ try:
                             tag.decompose()
                         title = title_tag.get_text(strip=True)
 
-                    raw_blocks["corp_info_block"] = str(soup.select_one("div.tbCol.tbCoInfo"))
-                    raw_blocks["requirements_block"] = str(soup.select_one("div.tbCol.tbCoResume"))
-
-                    job_desc = soup.select_one("div.artRead_detail")
-                    raw_blocks["job_description_block"] = {
-                        "html": str(job_desc),
-                        "image_urls": [img["src"] for img in job_desc.find_all("img") if img.get("src")]
-                    } if job_desc else {}
-
-                    raw_text_blocks["corp_info_text"] = soup.select_one("div.tbCol.tbCoInfo").get_text(strip=True) if soup.select_one("div.tbCol.tbCoInfo") else ""
-                    raw_text_blocks["requirements_text"] = soup.select_one("div.tbCol.tbCoResume").get_text(strip=True) if soup.select_one("div.tbCol.tbCoResume") else ""
-                    raw_text_blocks["job_description_text"] = job_desc.get_text(strip=True) if job_desc else ""
+                    job_summary = soup.select_one("article.artReadJobSum div.tbRow.clear")
+                    detail_section = soup.select_one("section#tab01.secReadDetail")
+         
+                    document.update({
+                        "title": title,
+                        "company": company,
+                        "jobsum_text": job_summary.get_text(separator="\n", strip=True) if job_summary else "",
+                        "detail_text": detail_section.get_text(separator="\n", strip=True) if detail_section else ""
+                    })
 
                 # 구조2일 경우
                 elif structure2:
                     title = soup.select_one("h2.title-recruit").text.strip() if soup.select_one("h2.title-recruit") else ""
                     company = soup.select_one("a.devTitleCoReadUrl").text.strip() if soup.select_one("a.devTitleCoReadUrl") else ""
 
-                    raw_blocks["corp_info_block"] = str(soup.select_one("article.devCompanyInfo"))
-                    raw_blocks["requirements_block"] = str(soup.select_one("div.recruit-data"))
+                    section = soup.select_one("section.section-content")
+                    aside = soup.select_one("section.aside")
 
-                    job_desc = soup.select_one("div.dev-wrap-detailContents")
-                    raw_blocks["job_description_block"] = {
-                        "html": str(job_desc),
-                        "image_urls": [img["src"] for img in job_desc.find_all("img") if img.get("src")]
-                    } if job_desc else {}
-
-                    raw_text_blocks["corp_info_text"] = soup.select_one("article.devCompanyInfo").get_text(strip=True) if soup.select_one("article.devCompanyInfo") else ""
-                    raw_text_blocks["requirements_text"] = soup.select_one("div.recruit-data").get_text(strip=True) if soup.select_one("div.recruit-data") else ""
-                    raw_text_blocks["job_description_text"] = job_desc.get_text(strip=True) if job_desc else ""
-
-                document = {
-                    "url": link,
-                    "source": "jobkorea",
-                    "title": title,
-                    "company": company,
-                    "job_category": mid_cat_clean_label,
-                    "raw_html_blocks": raw_blocks,
-                    "raw_text_blocks": raw_text_blocks,
-                    "crawl_id": str(uuid.uuid4()),
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
+                    document.update({
+                        "title": title,
+                        "company": company,
+                        "section_text": section.get_text(separator="\n", strip=True) if section else "",
+                        "aside_text": aside.get_text(separator="\n", strip=True) if aside else ""
+                    })
 
                 raw_col.insert_one(document)
                 print("✅ 저장 완료:", title)
@@ -171,6 +154,27 @@ try:
                 driver.close()
                 driver.switch_to.window(driver.window_handles[0])
                 continue
+
+        # 다음 페이지 클릭
+        current_page += 1
+        if current_page > total_pages:
+            break
+        if current_page % 10 == 1:  # 11, 21, 31... → "다음" 버튼 눌러야 함
+            try:
+                next_group_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.btnPgnNext")))
+                driver.execute_script("arguments[0].click();", next_group_btn)
+                time.sleep(2)
+            except Exception as e:
+                print("❌ 다음 버튼 클릭 실패:", e)
+                break
+        else:
+            try:
+                next_page_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, f"a[data-page='{current_page}']")))
+                driver.execute_script("arguments[0].click();", next_page_btn)
+                time.sleep(2)
+            except Exception as e:
+                print(f"❌ {current_page} 페이지로 이동 실패:", e)
+                break
 
 except Exception as e:
     print("❌ 중분류 처리 실패:", e)

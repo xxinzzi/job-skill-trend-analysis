@@ -18,7 +18,6 @@ def init_mongo():
     try:
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
         client.server_info()  # 연결 테스트
-        print("✅ MongoDB 연결 성공!")
         db = client["job-data"]
         return db
     except ConnectionFailure as e:
