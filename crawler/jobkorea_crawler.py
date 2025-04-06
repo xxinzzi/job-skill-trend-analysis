@@ -21,7 +21,7 @@ raw_col = get_collection("raw_postings_jobkorea")
 
 # Selenium 크롬 드라이버 옵션
 options = Options()
-# options.add_argument("--headless")  # 필요 시 활성화
+options.add_argument("--headless")  # 필요 시 활성화
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 driver = webdriver.Chrome(options=options)
@@ -128,20 +128,32 @@ try:
                         "detail_text": detail_section.get_text(separator="\n", strip=True) if detail_section else ""
                     })
 
-                    # iframe 내부 이미지 수집
+                    iframe_text = ""
                     image_urls = []
+
                     try:
                         iframe_elem = driver.find_element(By.CSS_SELECTOR, "iframe#gib_frame")
                         driver.switch_to.frame(iframe_elem)
 
-                        # iframe 내에서 이미지 src 추출
-                        iframe_images = driver.find_elements(By.TAG_NAME, "img")
-                        image_urls = [img.get_attribute("src") for img in iframe_images if img.get_attribute("src")]
+                        # iframe 전체 HTML 파싱
+                        iframe_soup = BeautifulSoup(driver.page_source, "html.parser")
+
+                        # 텍스트 추출
+                        content_div = iframe_soup.select_one("div.secDetailWrap")
+                        if content_div:
+                            iframe_text = content_div.get_text(separator="\n", strip=True)
+
+                        # 이미지 추출
+                        iframe_images = iframe_soup.find_all("img")
+                        image_urls = [img.get("src") for img in iframe_images if img.get("src")]
 
                         driver.switch_to.default_content()
 
                     except Exception as iframe_err:
-                        print("❌ iframe 이미지 수집 실패:", iframe_err)
+                        print("❌ iframe 처리 실패:", iframe_err)
+
+                    if iframe_text:
+                        document["iframe_text"] = iframe_text
 
                     if image_urls:
                         s3_urls = []
