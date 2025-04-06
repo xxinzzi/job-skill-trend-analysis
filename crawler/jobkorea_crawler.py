@@ -1,9 +1,7 @@
 import sys
 import os
 import time
-import uuid
 import re
-from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -120,13 +118,31 @@ try:
 
                     job_summary = soup.select_one("article.artReadJobSum div.tbRow.clear")
                     detail_section = soup.select_one("section#tab01.secReadDetail")
-         
+                    
                     document.update({
                         "title": title,
                         "company": company,
                         "jobsum_text": job_summary.get_text(separator="\n", strip=True) if job_summary else "",
                         "detail_text": detail_section.get_text(separator="\n", strip=True) if detail_section else ""
                     })
+
+                    # iframe 내부 이미지 수집
+                    image_urls = []
+                    try:
+                        iframe_elem = driver.find_element(By.CSS_SELECTOR, "iframe#gib_frame")
+                        driver.switch_to.frame(iframe_elem)
+
+                        # iframe 내에서 이미지 src 추출
+                        iframe_images = driver.find_elements(By.TAG_NAME, "img")
+                        image_urls = [img.get_attribute("src") for img in iframe_images if img.get_attribute("src")]
+
+                        driver.switch_to.default_content()
+
+                    except Exception as iframe_err:
+                        print("❌ iframe 이미지 수집 실패:", iframe_err)
+
+                    if image_urls:
+                        document["detail_image_urls"] = image_urls
 
                 # 구조2일 경우
                 elif structure2:
