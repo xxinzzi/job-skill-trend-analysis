@@ -179,7 +179,7 @@ try:
                     if image_urls:
                         s3_urls = []
                         for url in image_urls:
-                            s3_url = upload_image_to_s3(url)
+                            s3_url = upload_image_to_s3(url, "jobkorea")
                             if s3_url:
                                 s3_urls.append(s3_url)
 

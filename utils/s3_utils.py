@@ -17,7 +17,7 @@ s3 = boto3.client(
 )
 bucket_name = os.getenv("AWS_BUCKET_NAME")
 
-def upload_image_to_s3(image_url: str, folder: str = "jobkorea_test") -> str:
+def upload_image_to_s3(image_url: str, folder: str) -> str:
     """
     이미지 URL 또는 data URI(base64)를 S3에 업로드하고 public URL 반환
     """
