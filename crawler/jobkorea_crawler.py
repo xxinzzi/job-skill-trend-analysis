@@ -8,20 +8,21 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
+import random
 
 # utils에서 MongoDB 및 S3 업로드 유틸 불러오기
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from utils.mongo_utils import init_mongo, get_collection
-from utils.image_utils import extract_real_image_url 
 from utils.s3_utils import upload_image_to_s3
+from utils.captcha_utils import check_and_wait_for_captcha
 
 # MongoDB 초기화 및 컬렉션 객체
 init_mongo()
-raw_col = get_collection("raw_postings_jobkorea")
+raw_col = get_collection("raw_postings_jobkorea_test")
 
 # Selenium 크롬 드라이버 옵션
 options = Options()
-options.add_argument("--headless")  # 필요 시 활성화
+# options.add_argument("--headless")  # 필요 시 활성화
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 driver = webdriver.Chrome(options=options)
@@ -72,7 +73,21 @@ try:
     total_pages = (total_count + 39) // 40
     mid_cat_clean_label = re.sub(r"\s*\(.*?\)", "", mid_cat_label).strip()
 
-    current_page = 1
+    start_page = int(input("총 페이지: {total_pages}\n시작할 페이지 번호를 입력하세요: "))
+
+    # start_page로 이동
+    if start_page > 1:
+        for i in range(1, start_page):
+            if i % 10 == 0:
+                next_group_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.btnPgnNext")))
+                driver.execute_script("arguments[0].click();", next_group_btn)
+            else:
+                page_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, f"a[data-page='{i+1}']")))
+                driver.execute_script("arguments[0].click();", page_btn)
+        time.sleep(1)
+
+    current_page = start_page
+
     while current_page <= total_pages:
         print(f"\n⏳ {current_page}/{total_pages} 페이지 수집 중...")
 
@@ -81,6 +96,12 @@ try:
         postings = dev_gi_list.find_elements(By.CSS_SELECTOR, "tr.devloopArea")
 
         for post in postings:
+            # CAPTCHA 감지 및 예외 처리
+            check_and_wait_for_captcha(driver, current_page)
+
+            title_elem = post.find_element(By.CSS_SELECTOR, "td.tplTit strong a")
+            link = title_elem.get_attribute("href")
+
             try:
                 title_elem = post.find_element(By.CSS_SELECTOR, "td.tplTit strong a")
                 link = title_elem.get_attribute("href")
@@ -158,8 +179,7 @@ try:
                     if image_urls:
                         s3_urls = []
                         for url in image_urls:
-                            real_url = extract_real_image_url(url)
-                            s3_url = upload_image_to_s3(real_url)
+                            s3_url = upload_image_to_s3(url)
                             if s3_url:
                                 s3_urls.append(s3_url)
 
@@ -195,6 +215,9 @@ try:
                 driver.close()
                 driver.switch_to.window(driver.window_handles[0])
                 continue
+        
+        # IP 차단 방지 속도 조절
+        time.sleep(random.uniform(2, 5))
 
         # 다음 페이지 클릭
         current_page += 1
@@ -218,6 +241,9 @@ try:
                 break
 
 except Exception as e:
-    print("❌ 중분류 처리 실패:", e)
+    print(f"\n❌ 중단됨: {e}")
+    print(f"중단된 페이지 번호: {current_page}")
+    driver.quit()
+    sys.exit(1)  # 강제 종료
 
 driver.quit()
