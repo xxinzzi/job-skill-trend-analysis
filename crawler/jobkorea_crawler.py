@@ -9,6 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 import random
+from datetime import datetime
 
 # utils에서 MongoDB 및 S3 업로드 유틸 불러오기
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -22,7 +23,7 @@ raw_col = get_collection("raw_postings_jobkorea_test")
 
 # Selenium 크롬 드라이버 옵션
 options = Options()
-# options.add_argument("--headless")  # 필요 시 활성화
+#options.add_argument("--headless")  # 필요 시 활성화
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 driver = webdriver.Chrome(options=options)
@@ -73,7 +74,7 @@ try:
     total_pages = (total_count + 39) // 40
     mid_cat_clean_label = re.sub(r"\s*\(.*?\)", "", mid_cat_label).strip()
 
-    start_page = int(input("총 페이지: {total_pages}\n시작할 페이지 번호를 입력하세요: "))
+    start_page = int(input("시작할 페이지 번호를 입력하세요: "))
 
     # start_page로 이동
     if start_page > 1:
@@ -109,7 +110,7 @@ try:
                 # 상세 페이지 이동
                 driver.execute_script("window.open(arguments[0]);", link)
                 driver.switch_to.window(driver.window_handles[-1])
-                time.sleep(2)
+                time.sleep(random.uniform(3, 5))
 
                 soup = BeautifulSoup(driver.page_source, "html.parser")
 
@@ -124,8 +125,8 @@ try:
                 document = {
                     "url": link,
                     "source": "jobkorea",
-                    "job_category": "AI·개발·데이터",
-                    "job_mid_category": mid_cat_clean_label,
+                    "job_category": mid_cat_clean_label,
+                    "collected_at": datetime.now()
                 }
 
                 # 구조1일 경우
